@@ -1,0 +1,189 @@
+body{
+    background-color: #e4f9f5;
+}
+
+
+
+button{
+
+    background-color: #30e3ca;
+    font-size: 48px;
+
+    
+}
+input{
+
+  background-color: #30e3ca;
+  font-size: 48px;
+  text-align: right;
+
+  
+}
+p{
+
+  
+  font-size: 48px;
+  text-align: center;
+
+  
+}
+
+.myInput {
+  border: 1px solid black;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  background-color: #30e3ca;    
+   
+  }
+
+  .topnav {
+    overflow: hidden;
+    background-color: #333;
+    position: relative;
+  }
+  
+  .topnav #myLinks {
+    display: none;
+  }
+  
+  .topnav a {
+    color: white;
+    padding: 14px 16px;
+    text-decoration: none;
+    font-size: 28px;
+    display: block;
+  }
+  
+  .topnav a.icon {
+   
+    display: block;
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  
+  .topnav a:hover {
+    
+    color: black;
+  }
+  
+  .active {
+    background-color: #04AA6D;
+    color: white;
+  }
+
+p {
+    
+    color: #11999e;
+    font-size: 72px;
+    text-align: center;
+    width: 100%;
+}
+
+.box {
+  float: left;
+  width: 50%;
+  
+  background: #000000;
+  box-sizing: border-box;
+  border: 3px solid #ffffff;
+  margin-top: 10px;
+  
+  color: white;
+ }
+ .box1 {
+  float: left;
+  width: 50%;
+  
+  background: #000000;
+  box-sizing: border-box;
+  border: 3px solid #ffffff;
+  
+  color: white;
+ }
+ .RefInput {
+
+  width: 100%;
+  
+  background: #ffffff;
+  box-sizing: border-box;
+  border: 20px solid #ff0202;
+  font-size: 48px;
+  text-align: center;
+  color: #000000;
+   margin-top: 0px;
+   margin-bottom: 20px;
+ }
+ .ParInput {
+
+  width: 100%;
+  
+  background: #ffffff;
+  box-sizing: border-box;
+  border: 20px solid #ff0202;
+  font-size: 48px;
+  text-align: center;
+  color: #000000;
+   margin-top: 0px;
+   margin-bottom: 20px;
+ }
+ .RefButton {
+
+  width: 100%;
+  font-size: 48px;
+  text-align: center;
+  background: #30e3ca;
+  box-sizing: border-box;
+  border:10px solid #050505;
+  
+  color: #0c0c0c;
+ }
+ .RefText {
+
+  width: 100%;
+  font-size: 28px;
+  text-align: center;
+  background: #30e3ca;
+  box-sizing: border-box;
+  border: 0px solid #050505;
+  
+  color: #0c0c0c;
+ }
+
+
+ .ist {
+
+  width: 100%;
+  
+  background: #ffffff;
+  box-sizing: border-box;
+  border: 20px solid #22ca2a;
+  font-size: 56px;
+  text-align: right;
+  color: #000000;
+   margin-top: 0px;
+   margin-bottom: 20px;
+ }
+ .bt50 {
+ float:left;
+  width: 50%;
+  font-size: 48px;
+  text-align: center;
+  background: #30e3ca;
+  box-sizing: border-box;
+  border:10px solid #050505;
+  
+  color: #0c0c0c;
+ }
+
+ .emty{
+  width: 100%;
+  font-size: 48px;
+  text-align: center;
+  background: #30e3ca;
+  color: #30e3ca;
+ }
+
+ .box:last-child {
+      margin-right: 0;
+ }
