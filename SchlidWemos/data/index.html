@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kantbank</title>
+    <title>Hausnummer</title>
     <link rel="icon" type="image/png" sizes="16x16" href="data:image/png;base64,
 iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAAMFBMVEU0OkArMjhobHEoPUPFEBIu
 O0L+AAC2FBZ2JyuNICOfGx7xAwTjCAlCNTvVDA1aLzQ3COjMAAAAVUlEQVQI12NgwAaCDSA0888G
@@ -13,17 +13,35 @@ GqNYJAgFDEpQAAAzmxafI4vZWwAAAABJRU5ErkJggg==" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-   
-       
- 
-        <button class="bt50" id="MINUS" onclick="relMinus()" >&#9667</button>
-       
-        <input type="color" id="CLF" name="head" value="#0000ff" />
+    
+        	
+<a claas="topnav a">&#129691; Hausnummer 2b</a>
+
+<button class="RefText" id="akt"  >aktuell: -1 Lux</button>
         
+    
+ 
+        <button class="RefText" id="Bt"  >ON</button>
+    
+        <input class="ParInput" type="number" id="ON" name="ON" min="0" max="50000">
+        <button class="RefText" id="Bt"  >OFF</button>
+        <input class="ParInput" type="number" id="OFF" name="OFF" min="0" max="50000">
+        <button class="RefText" id="Bt"  >Helligkeit</button>
+        <input class="ParInput" type="number" id="Helligkeit" name="Helligkeit" min="0" max="255">
+        <button class="RefText" id="Bt"  >Rot</button>
+        <input class="ParInput" type="number" id="r" name="r" min="0" max="255">
+        <button class="RefText" id="Bt"  >Grün</button>
+        <input class="ParInput" type="number" id="g" name="g" min="0" max="255">
+        <button class="RefText" id="Bt"  >Blau</button>
+        <input class="ParInput" type="number" id="b" name="b" min="0" max="255">
+
+        <input type="color" id="Color1" name="Color1" value="#0000ff" />
+     
+        <button class="RefButton" id="SAVEPAR"  onclick="save()">SAVE</button>
 
                             
                          
    
 </body>
-<script src="index.js"></script>
+<script src="script.js"></script>
 </html>

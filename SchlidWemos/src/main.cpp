@@ -1,8 +1,5 @@
 #include <Arduino.h>
 
-         
-
-
 #include <ESP8266WebServer.h>
 #include <Adafruit_NeoPixel.h>
 
@@ -10,128 +7,162 @@
 #include <secret.h>
 #include <BH1750.h>
 #include <Wire.h>
-#include <ArduinoOTA.h>
 
-bool LichtEin=false;
+#include <ElegantOTA.h>
+#include <myWebServer.h>
+
+bool LichtEin = false;
+float lux;
 BH1750 lightMeter;
 #define LED_PIN D4
-#define LED_COUNT 28 * 5
+#define LED_COUNT 31 * 9
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+ESP8266WebServer server(80);
+myWebserver myWeb;
 
-
-void Wifi_OAT()
+String webDat = "";
+FileSystem tape;
+void readParameter()
 {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(STASSID, STAPSK);
-  WiFi.setHostname(STAHOST);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  if (tape.mount())
   {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
+    // Serial.println("Filesystem gemountet");
+  }
+  else
+  {
+    // Serial.println("Filesystem nicht gemountet");
   }
 
-  ArduinoOTA.onStart([]()
-                     {
-                       String type;
-                       if (ArduinoOTA.getCommand() == U_FLASH)
-                       {
-                         type = "sketch";
-                       }
-                       else
-                       { // U_FS
-                         type = "filesystem";
-                       }
+  String TXT = tape.ReadFile((char *)"/ParaM");
+  String mes = "";
 
-                       // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-                       Serial.println("Start updating " + type);
-                     });
-  ArduinoOTA.onEnd([]()
-                   { Serial.println("\nEnd"); });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-                        { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
-  ArduinoOTA.onError([](ota_error_t error)
-                     {
-                       Serial.printf("Error[%u]: ", error);
-                       if (error == OTA_AUTH_ERROR)
-                       {
-                         Serial.println("Auth Failed");
-                       }
-                       else if (error == OTA_BEGIN_ERROR)
-                       {
-                         Serial.println("Begin Failed");
-                       }
-                       else if (error == OTA_CONNECT_ERROR)
-                       {
-                         Serial.println("Connect Failed");
-                       }
-                       else if (error == OTA_RECEIVE_ERROR)
-                       {
-                         Serial.println("Receive Failed");
-                       }
-                       else if (error == OTA_END_ERROR)
-                       {
-                         Serial.println("End Failed");
-                       }
-                     });
-  ArduinoOTA.begin();
-  Serial.println("Ready");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  if (TXT == "notExists")
+  {
+    mes = myWeb.CreateTXString();
+    // Serial.println(mes);
+    mes += "/";
+    tape.WriteNewFile((char *)"/ParaM", (char *)mes.c_str());
+    TXT = tape.ReadFile((char *)"/ParaM");
+  }
+
+  myWeb.configData = myWeb.SplitPayload(TXT);
+
+  mes = myWeb.CreateTXString();
+
+ 
 }
 
+void Wifi_ElegantOTA()
+{
+  WiFi.mode(WIFI_STA);
+  
+  WiFi.begin(STASSID, STAPSK);
+  
+  WiFi.setHostname(STAHOST);
 
+  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
+    // Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+  }
+  server.on("/", []()
+            { 
+              Serial.println(myWeb.GetFile(tape, (char *)"/index.html"));
+              server.send(200, "text/html", myWeb.GetFile(tape, (char *)"/index.html")); });
 
-void setup() {
-    // put your setup code here, to run once:
-    Serial.begin(115200);
-    delay(100);
-    Wifi_OAT();
- Wire.begin();
+  server.on("/style.css", HTTP_GET, []()
+            { server.send(200, "text/css", myWeb.GetFile(tape, (char *)"/style.css")); });
+  server.on("/script.js", HTTP_GET, []()
+            { server.send(200, "text/javascript", myWeb.GetFile(tape, (char *)"/script.js")); });
+  server.on("/ParM", HTTP_GET, []()
+            {
+               String message = myWeb.CreateTXString();
+               //Serial.println(message);
+              server.send_P(200, "text/plain", message.c_str()); });
+  server.on("/light", HTTP_GET, []()
+            {
+               String message = String(lux);
+               //Serial.println(message);
+              server.send_P(200, "text/plain", message.c_str()); });
+
+  server.on("/data", HTTP_POST, []()
+            {
+              if (server.hasArg("plain") == false)
+              { // Check if body received
+
+                server.send(200, "text/plain", "Body not received");
+                return;
+              }
+
+              String message = "";
+              message += server.arg("plain");
+              
+              server.send(200, "text/plain", message);
+              myWeb.configData = myWeb.SplitPayload(message); 
+              tape.WriteNewFile((char *)"/ParaM", (char *)message.c_str()); });
+
+  ElegantOTA.begin(&server); // Start ElegantOTA
+  server.begin();
+}
+
+void setup()
+{
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  delay(100);
+  Wifi_ElegantOTA();
+  Wire.begin();
+   readParameter();
   // On esp8266 you can select SCL and SDA pins using Wire.begin(D4, D3);
   // For Wemos / Lolin D1 Mini Pro and the Ambient Light shield use
   // Wire.begin(D2, D1);
 
   lightMeter.begin();
+  strip.begin();
 
-  Serial.println(F("BH1750 Test begin"));
-
-
-
-    
-
-    
-   
-   
+  Serial.println(F("BH1750 Te"));
 }
 
-void loop() {
+void loop()
+{
+  server.handleClient();
+  // ArduinoOTA.handle();
+  //  put your main code here, to run repeatedly:
 
-  ArduinoOTA.handle();
-    // put your main code here, to run repeatedly:
-
-
-   float lux = lightMeter.readLightLevel();
+  lux = lightMeter.readLightLevel();
   Serial.print("Light: ");
   Serial.print(lux);
   Serial.println(" lx");
   Serial.println(LichtEin);
-  if (lux<15){
-LichtEin= true;
+   Serial.println(myWeb.configData.Helligkeit);
+    Serial.println(myWeb.configData.OFF);
+
+    strip.setBrightness(myWeb.configData.Helligkeit);
+  // webDat= "Light: "+String(lux)+ " lx "+" EIN: "+String(LichtEin);
+  if (lux < myWeb.configData.ON)
+  {
+    LichtEin = true;
   }
-   if (lux>20){
-LichtEin= false;
+  if (lux > myWeb.configData.OFF)
+  {
+    LichtEin = false;
+     
+
   }
-for (int i=0;i<LED_COUNT;i++){
-  if (LichtEin){
-    
-      strip.setPixelColor(i,strip.Color(150,0,255));
-    
+
+  for (int i = 0; i < LED_COUNT; i++)
+  {
+    if (LichtEin)
+    {
+
+
+      strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
+    }
+    else
+    {
+      strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
   }
-  else{
-    strip.setPixelColor(i,strip.Color(0,0,0));
-  }
-  }
-  delay(5000);
-    
+  strip.show();
+  delay(1000);
 }

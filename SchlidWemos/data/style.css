@@ -1,5 +1,6 @@
 body{
     background-color: #e4f9f5;
+    font-size: 48px;
 }
 
 
@@ -50,7 +51,7 @@ p{
     color: white;
     padding: 14px 16px;
     text-decoration: none;
-    font-size: 28px;
+    font-size: 72px;
     display: block;
   }
   
