@@ -150,13 +150,15 @@ void loop()
 
   }
 
-  for (int i = 0; i < LED_COUNT; i++)
+  for (int i = 0; i < 31*3; i++)
   {
     if (LichtEin)
     {
+//strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
 
-
-      strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
+      strip.setPixelColor(i, strip.Color(0,0,255));
+      strip.setPixelColor(i+31*3, strip.Color(255,255,255));
+      strip.setPixelColor(i+31*6, strip.Color(255, 0, 0));
     }
     else
     {
