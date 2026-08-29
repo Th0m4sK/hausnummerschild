@@ -11,6 +11,8 @@
 #include <ElegantOTA.h>
 #include <myWebServer.h>
 
+#define FW_VERSION "0.0.1"
+
 bool LichtEin = false;
 float lux;
 BH1750 lightMeter;
@@ -22,6 +24,15 @@ myWebserver myWeb;
 
 String webDat = "";
 FileSystem tape;
+
+// Das Schild soll auch ohne WLAN leuchten: Verbindungsaufbau laeuft nebenher,
+// Sensor und LEDs haengen nicht daran.
+#define WIFI_RETRY_MS 30000
+#define MESS_INTERVALL_MS 1000
+bool serverLaeuft = false;
+unsigned long letzterWifiVersuch = 0;
+unsigned long letzteMessung = 0;
+
 void readParameter()
 {
   if (tape.mount())
@@ -48,23 +59,10 @@ void readParameter()
   myWeb.configData = myWeb.SplitPayload(TXT);
 
   mes = myWeb.CreateTXString();
-
- 
 }
 
-void Wifi_ElegantOTA()
+void RoutenAnmelden()
 {
-  WiFi.mode(WIFI_STA);
-  
-  WiFi.begin(STASSID, STAPSK);
-  
-  WiFi.setHostname(STAHOST);
-
-  while (WiFi.waitForConnectResult() != WL_CONNECTED)
-  {
-    // Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-  }
   server.on("/", []()
             { 
               Serial.println(myWeb.GetFile(tape, (char *)"/index.html"));
@@ -100,44 +98,53 @@ void Wifi_ElegantOTA()
               server.send(200, "text/plain", message);
               myWeb.configData = myWeb.SplitPayload(message); 
               tape.WriteNewFile((char *)"/ParaM", (char *)message.c_str()); });
-
-  ElegantOTA.begin(&server); // Start ElegantOTA
-  server.begin();
 }
 
-void setup()
+void WifiStarten()
 {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  delay(100);
-  Wifi_ElegantOTA();
-  Wire.begin();
-   readParameter();
-  // On esp8266 you can select SCL and SDA pins using Wire.begin(D4, D3);
-  // For Wemos / Lolin D1 Mini Pro and the Ambient Light shield use
-  // Wire.begin(D2, D1);
-
-  lightMeter.begin();
-  strip.begin();
-
-  Serial.println(F("BH1750 Te"));
+  WiFi.mode(WIFI_STA);
+  WiFi.setHostname(STAHOST);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(STASSID, STAPSK);
+  letzterWifiVersuch = millis();
 }
 
-void loop()
+// Wird bei jedem Schleifendurchlauf aufgerufen und blockiert nie: solange kein
+// WLAN da ist, wird nur alle WIFI_RETRY_MS ein neuer Versuch angestossen.
+void WifiPflegen()
 {
-  server.handleClient();
-  // ArduinoOTA.handle();
-  //  put your main code here, to run repeatedly:
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    if (!serverLaeuft)
+    {
+      ElegantOTA.begin(&server); // Start ElegantOTA
+      server.begin();
+      serverLaeuft = true;
+      Serial.print("WLAN verbunden, IP: ");
+      Serial.println(WiFi.localIP());
+    }
+    return;
+  }
 
+  if (millis() - letzterWifiVersuch >= WIFI_RETRY_MS)
+  {
+    Serial.println("Kein WLAN, neuer Verbindungsversuch");
+    WiFi.begin(STASSID, STAPSK);
+    letzterWifiVersuch = millis();
+  }
+}
+
+void SchildAktualisieren()
+{
   lux = lightMeter.readLightLevel();
   Serial.print("Light: ");
   Serial.print(lux);
   Serial.println(" lx");
   Serial.println(LichtEin);
-   Serial.println(myWeb.configData.Helligkeit);
-    Serial.println(myWeb.configData.OFF);
+  Serial.println(myWeb.configData.Helligkeit);
+  Serial.println(myWeb.configData.OFF);
 
-    strip.setBrightness(myWeb.configData.Helligkeit);
+  strip.setBrightness(myWeb.configData.Helligkeit);
   // webDat= "Light: "+String(lux)+ " lx "+" EIN: "+String(LichtEin);
   if (lux < myWeb.configData.ON)
   {
@@ -146,25 +153,67 @@ void loop()
   if (lux > myWeb.configData.OFF)
   {
     LichtEin = false;
-     
-
   }
 
-  for (int i = 0; i < 31*3; i++)
+  for (int i = 0; i < 31 * 3; i++)
   {
     if (LichtEin)
     {
-//strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
+      // strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
 
-      strip.setPixelColor(i, strip.Color(0,0,255));
-      strip.setPixelColor(i+31*3, strip.Color(255,255,255));
-      strip.setPixelColor(i+31*6, strip.Color(255, 0, 0));
+      strip.setPixelColor(i, strip.Color(0, 0, 255));
+      strip.setPixelColor(i + 31 * 3, strip.Color(255, 255, 255));
+      strip.setPixelColor(i + 31 * 6, strip.Color(255, 0, 0));
     }
     else
     {
       strip.setPixelColor(i, strip.Color(0, 0, 0));
+      strip.setPixelColor(i + 31 * 3, strip.Color(0, 0, 0));
+      strip.setPixelColor(i + 31 * 6, strip.Color(0, 0, 0));
     }
   }
   strip.show();
-  delay(1000);
+}
+
+void setup()
+{
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  delay(100);
+  Serial.print(F("Hausnummerschild FW "));
+  Serial.println(F(FW_VERSION));
+
+  // Erst die Hardware, dann das Netz: faellt das WLAN aus, schaltet die
+  // Daemmerungsautomatik trotzdem.
+  Wire.begin();
+  // On esp8266 you can select SCL and SDA pins using Wire.begin(D4, D3);
+  // For Wemos / Lolin D1 Mini Pro and the Ambient Light shield use
+  // Wire.begin(D2, D1);
+
+  lightMeter.begin();
+  strip.begin();
+  strip.show(); // definierter Startzustand: alles aus
+
+  readParameter();
+
+  RoutenAnmelden();
+  WifiStarten();
+
+  Serial.println(F("BH1750 Te"));
+}
+
+void loop()
+{
+  WifiPflegen();
+
+  if (serverLaeuft)
+  {
+    server.handleClient();
+  }
+
+  if (millis() - letzteMessung >= MESS_INTERVALL_MS)
+  {
+    letzteMessung = millis();
+    SchildAktualisieren();
+  }
 }
