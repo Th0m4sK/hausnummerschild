@@ -1,183 +1,145 @@
 #include <Arduino.h>
 
-#include <ESP8266WebServer.h>
-#include <Adafruit_NeoPixel.h>
-
 #include <ESP8266WiFi.h>
-#include <secret.h>
+#include <ESP8266WebServer.h>
+#include <WiFiManager.h>
+#include <Adafruit_NeoPixel.h>
 #include <BH1750.h>
 #include <Wire.h>
+#include <LittleFS.h>
 
-#include <ElegantOTA.h>
-#include <myWebServer.h>
+#include <Konfig.h>
+#include <WebUI.h>
+#include <Version.h>
 
-#define FW_VERSION "0.0.1"
-
-bool LichtEin = false;
-float lux;
-BH1750 lightMeter;
 #define LED_PIN D4
-#define LED_COUNT 31 * 9
-Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-ESP8266WebServer server(80);
-myWebserver myWeb;
 
-String webDat = "";
-FileSystem tape;
+// Zugangsdaten kommen vom WiFiManager aus dem Flash, nicht mehr aus secret.h.
+#define HOSTNAME "hausnummer"
+#define AP_NAME "Hausnummer-Setup" // offen, erreichbar nur wenn kein WLAN da ist
+#define PORTAL_TIMEOUT_S 300       // danach wieder normale STA-Versuche
+#define CONNECT_TIMEOUT_S 15       // so lange darf der Start auf das WLAN warten
 
 // Das Schild soll auch ohne WLAN leuchten: Verbindungsaufbau laeuft nebenher,
 // Sensor und LEDs haengen nicht daran.
 #define WIFI_RETRY_MS 30000
 #define MESS_INTERVALL_MS 1000
+
+bool LichtEin = false;
+float lux = 0;
+
+BH1750 lightMeter;
+Adafruit_NeoPixel strip(LED_GESAMT, LED_PIN, NEO_GRB + NEO_KHZ800);
+ESP8266WebServer server(80);
+WiFiManager wm;
+
 bool serverLaeuft = false;
 unsigned long letzterWifiVersuch = 0;
 unsigned long letzteMessung = 0;
 
-void readParameter()
-{
-  if (tape.mount())
-  {
-    // Serial.println("Filesystem gemountet");
-  }
-  else
-  {
-    // Serial.println("Filesystem nicht gemountet");
-  }
-
-  String TXT = tape.ReadFile((char *)"/ParaM");
-  String mes = "";
-
-  if (TXT == "notExists")
-  {
-    mes = myWeb.CreateTXString();
-    // Serial.println(mes);
-    mes += "/";
-    tape.WriteNewFile((char *)"/ParaM", (char *)mes.c_str());
-    TXT = tape.ReadFile((char *)"/ParaM");
-  }
-
-  myWeb.configData = myWeb.SplitPayload(TXT);
-
-  mes = myWeb.CreateTXString();
-}
-
-void RoutenAnmelden()
-{
-  server.on("/", []()
-            { 
-              Serial.println(myWeb.GetFile(tape, (char *)"/index.html"));
-              server.send(200, "text/html", myWeb.GetFile(tape, (char *)"/index.html")); });
-
-  server.on("/style.css", HTTP_GET, []()
-            { server.send(200, "text/css", myWeb.GetFile(tape, (char *)"/style.css")); });
-  server.on("/script.js", HTTP_GET, []()
-            { server.send(200, "text/javascript", myWeb.GetFile(tape, (char *)"/script.js")); });
-  server.on("/ParM", HTTP_GET, []()
-            {
-               String message = myWeb.CreateTXString();
-               //Serial.println(message);
-              server.send_P(200, "text/plain", message.c_str()); });
-  server.on("/light", HTTP_GET, []()
-            {
-               String message = String(lux);
-               //Serial.println(message);
-              server.send_P(200, "text/plain", message.c_str()); });
-
-  server.on("/data", HTTP_POST, []()
-            {
-              if (server.hasArg("plain") == false)
-              { // Check if body received
-
-                server.send(200, "text/plain", "Body not received");
-                return;
-              }
-
-              String message = "";
-              message += server.arg("plain");
-              
-              server.send(200, "text/plain", message);
-              myWeb.configData = myWeb.SplitPayload(message); 
-              tape.WriteNewFile((char *)"/ParaM", (char *)message.c_str()); });
-}
-
 void WifiStarten()
 {
   WiFi.mode(WIFI_STA);
-  WiFi.setHostname(STAHOST);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(STASSID, STAPSK);
+
+  wm.setHostname(HOSTNAME);
+  wm.setConfigPortalBlocking(false); // Portal darf loop() nicht anhalten
+  wm.setConnectTimeout(CONNECT_TIMEOUT_S);
+  wm.setConfigPortalTimeout(PORTAL_TIMEOUT_S);
+
+  // Gespeicherte Daten probieren; erst wenn die nicht tragen, geht das Portal auf.
+  wm.autoConnect(AP_NAME);
   letzterWifiVersuch = millis();
 }
 
 // Wird bei jedem Schleifendurchlauf aufgerufen und blockiert nie: solange kein
-// WLAN da ist, wird nur alle WIFI_RETRY_MS ein neuer Versuch angestossen.
+// WLAN da ist, laeuft entweder das Konfigportal oder alle WIFI_RETRY_MS ein
+// neuer Verbindungsversuch.
 void WifiPflegen()
 {
+  wm.process(); // bedient das Konfigportal und kehrt sofort zurueck
+
+  if (wm.getConfigPortalActive())
+  {
+    // Das Portal belegt Port 80, unser Webserver muss so lange schweigen.
+    if (serverLaeuft)
+    {
+      server.stop();
+      serverLaeuft = false;
+    }
+    letzterWifiVersuch = millis();
+    return;
+  }
+
   if (WiFi.status() == WL_CONNECTED)
   {
     if (!serverLaeuft)
     {
-      ElegantOTA.begin(&server); // Start ElegantOTA
-      server.begin();
+      server.begin(); // Routen und ElegantOTA haengen schon dran
       serverLaeuft = true;
-      Serial.print("WLAN verbunden, IP: ");
+      Serial.print(F("WLAN verbunden, IP: "));
       Serial.println(WiFi.localIP());
     }
     return;
   }
 
+  if (serverLaeuft)
+  {
+    server.stop();
+    serverLaeuft = false;
+  }
+
   if (millis() - letzterWifiVersuch >= WIFI_RETRY_MS)
   {
-    Serial.println("Kein WLAN, neuer Verbindungsversuch");
-    WiFi.begin(STASSID, STAPSK);
+    Serial.println(F("Kein WLAN, neuer Verbindungsversuch"));
+    WiFi.reconnect(); // gespeicherte Daten, vom WiFiManager abgelegt
     letzterWifiVersuch = millis();
   }
 }
 
+// Bewusst ohne Deckel: 279 LEDs auf Weiss ziehen bei 100 Prozent rund 16 A.
+// Was das Netzteil nicht liefert, endet in Spannungseinbruechen und Neustarts.
 void SchildAktualisieren()
 {
   lux = lightMeter.readLightLevel();
-  Serial.print("Light: ");
-  Serial.print(lux);
-  Serial.println(" lx");
-  Serial.println(LichtEin);
-  Serial.println(myWeb.configData.Helligkeit);
-  Serial.println(myWeb.configData.OFF);
 
-  strip.setBrightness(myWeb.configData.Helligkeit);
-  // webDat= "Light: "+String(lux)+ " lx "+" EIN: "+String(LichtEin);
-  if (lux < myWeb.configData.ON)
+  if (lux < konfig.luxEin)
   {
     LichtEin = true;
   }
-  if (lux > myWeb.configData.OFF)
+  if (lux > konfig.luxAus)
   {
     LichtEin = false;
   }
 
-  for (int i = 0; i < 31 * 3; i++)
-  {
-    if (LichtEin)
-    {
-      // strip.setPixelColor(i, strip.Color(myWeb.configData.r, myWeb.configData.g, myWeb.configData.b));
+  strip.setBrightness((uint16_t)konfig.helligkeit * 255 / 100);
 
-      strip.setPixelColor(i, strip.Color(0, 0, 255));
-      strip.setPixelColor(i + 31 * 3, strip.Color(255, 255, 255));
-      strip.setPixelColor(i + 31 * 6, strip.Color(255, 0, 0));
-    }
-    else
+  if (LichtEin)
+  {
+    for (uint8_t nr = 0; nr < BALKEN_ANZAHL; nr++)
     {
-      strip.setPixelColor(i, strip.Color(0, 0, 0));
-      strip.setPixelColor(i + 31 * 3, strip.Color(0, 0, 0));
-      strip.setPixelColor(i + 31 * 6, strip.Color(0, 0, 0));
+      const Balken &bal = konfig.balken[nr];
+      uint8_t rot = (uint16_t)bal.r * bal.prozent / 100;
+      uint8_t gruen = (uint16_t)bal.g * bal.prozent / 100;
+      uint8_t blau = (uint16_t)bal.b * bal.prozent / 100;
+
+      uint16_t start = nr * LED_PRO_BALKEN;
+      for (uint16_t i = 0; i < LED_PRO_BALKEN; i++)
+      {
+        strip.setPixelColor(start + i, strip.Color(rot, gruen, blau));
+      }
     }
   }
+  else
+  {
+    strip.clear();
+  }
+
   strip.show();
 }
 
 void setup()
 {
-  // put your setup code here, to run once:
   Serial.begin(115200);
   delay(100);
   Serial.print(F("Hausnummerschild FW "));
@@ -186,20 +148,21 @@ void setup()
   // Erst die Hardware, dann das Netz: faellt das WLAN aus, schaltet die
   // Daemmerungsautomatik trotzdem.
   Wire.begin();
-  // On esp8266 you can select SCL and SDA pins using Wire.begin(D4, D3);
-  // For Wemos / Lolin D1 Mini Pro and the Ambient Light shield use
-  // Wire.begin(D2, D1);
-
   lightMeter.begin();
   strip.begin();
   strip.show(); // definierter Startzustand: alles aus
 
-  readParameter();
+  if (!LittleFS.begin())
+  {
+    Serial.println(F("LittleFS nicht gemountet"));
+  }
+  KonfigLaden(konfig);
 
-  RoutenAnmelden();
+  SchildAktualisieren(); // leuchtet schon, waehrend das WLAN noch sucht
+  letzteMessung = millis();
+
+  WebRoutenAnmelden(server, lux, LichtEin);
   WifiStarten();
-
-  Serial.println(F("BH1750 Te"));
 }
 
 void loop()

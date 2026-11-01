@@ -1,47 +1,91 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>Hausnummer</title>
-    <link rel="icon" type="image/png" sizes="16x16" href="data:image/png;base64,
-iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAAMFBMVEU0OkArMjhobHEoPUPFEBIu
-O0L+AAC2FBZ2JyuNICOfGx7xAwTjCAlCNTvVDA1aLzQ3COjMAAAAVUlEQVQI12NgwAaCDSA0888G
-CItjn0szWGBJTVoGSCjWs8TleQCQYV95evdxkFT8Kpe0PLDi5WfKd4LUsN5zS1sKFolt8bwAZrCa
-GqNYJAgFDEpQAAAzmxafI4vZWwAAAABJRU5ErkJggg==" />
-    
-    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    
-        	
-<a claas="topnav a">&#129691; Hausnummer 2b</a>
+    <header>
+        <h1>Hausnummer</h1>
+        <div id="status" class="status" aria-live="polite">
+            <span id="statusPunkt" class="punkt"></span>
+            <span id="statusText">verbinde&nbsp;&hellip;</span>
+        </div>
+    </header>
 
-<button class="RefText" id="akt"  >aktuell: -1 Lux</button>
-        
-    
- 
-        <button class="RefText" id="Bt"  >ON</button>
-    
-        <input class="ParInput" type="number" id="ON" name="ON" min="0" max="50000">
-        <button class="RefText" id="Bt"  >OFF</button>
-        <input class="ParInput" type="number" id="OFF" name="OFF" min="0" max="50000">
-        <button class="RefText" id="Bt"  >Helligkeit</button>
-        <input class="ParInput" type="number" id="Helligkeit" name="Helligkeit" min="0" max="255">
-        <button class="RefText" id="Bt"  >Rot</button>
-        <input class="ParInput" type="number" id="r" name="r" min="0" max="255">
-        <button class="RefText" id="Bt"  >Grün</button>
-        <input class="ParInput" type="number" id="g" name="g" min="0" max="255">
-        <button class="RefText" id="Bt"  >Blau</button>
-        <input class="ParInput" type="number" id="b" name="b" min="0" max="255">
+    <main>
+        <section class="karte">
+            <h2>Vorschau</h2>
+            <div id="vorschau" class="vorschau" role="img" aria-label="Vorschau des Schilds">
+                <div class="vorschauBalken" data-balken="0"></div>
+                <div class="vorschauBalken" data-balken="1"></div>
+                <div class="vorschauBalken" data-balken="2"></div>
+            </div>
+            <p class="hinweis">Balken&nbsp;1 liegt am Dateneingang des Streifens, hier unten.</p>
+        </section>
 
-        <input type="color" id="Color1" name="Color1" value="#0000ff" />
-     
-        <button class="RefButton" id="SAVEPAR"  onclick="save()">SAVE</button>
+        <section class="karte">
+            <h2>Schaltschwellen</h2>
+            <div class="zeile">
+                <label for="luxEin">Ein unter</label>
+                <div class="feld">
+                    <input type="number" id="luxEin" min="0" max="50000" step="1" inputmode="decimal">
+                    <span class="einheit">lx</span>
+                </div>
+            </div>
+            <div class="zeile">
+                <label for="luxAus">Aus über</label>
+                <div class="feld">
+                    <input type="number" id="luxAus" min="0" max="50000" step="1" inputmode="decimal">
+                    <span class="einheit">lx</span>
+                </div>
+            </div>
+            <p id="schwellenWarnung" class="warnung" hidden>
+                „Aus“ muss über „Ein“ liegen, sonst flackert das Schild in der Dämmerung.
+            </p>
+        </section>
 
-                            
-                         
-   
+        <section class="karte">
+            <h2>Gesamthelligkeit</h2>
+            <div class="schieber">
+                <input type="range" id="helligkeit" min="0" max="100" step="1">
+                <output for="helligkeit" id="helligkeitWert">20&thinsp;%</output>
+            </div>
+            <p class="hinweis">Gilt über alle Balken. Hohe Werte ziehen viel Strom.</p>
+        </section>
+
+        <template id="balkenVorlage">
+            <section class="karte balken">
+                <h2>Balken <span class="nr"></span></h2>
+                <div class="zeile">
+                    <label>Farbe</label>
+                    <div class="feld">
+                        <input type="color" class="farbe">
+                        <span class="hex"></span>
+                    </div>
+                </div>
+                <div class="schieber">
+                    <input type="range" class="prozent" min="0" max="100" step="1">
+                    <output class="prozentWert"></output>
+                </div>
+            </section>
+        </template>
+
+        <div id="balken"></div>
+    </main>
+
+    <footer>
+        <button id="speichern" type="button">Speichern</button>
+        <span id="meldung" class="meldung" aria-live="polite"></span>
+    </footer>
+
+    <script src="script.js"></script>
 </body>
-<script src="script.js"></script>
+
 </html>
